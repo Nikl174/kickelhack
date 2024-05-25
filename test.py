@@ -1,11 +1,21 @@
+#!/usr/bin/env python3.8
 from collections import namedtuple
+import sys
 import open3d as o3d
 import numpy as np
 import matplotlib.pyplot as plt
 
 ply_point_cloud = o3d.data.PLYPointCloud()
 # , format="xyzrgb"
-pcd = o3d.io.read_point_cloud("./cloud_merged.pcd")
+
+point_cloud = sys.argv[1]
+hull = int(sys.argv[2])
+if point_cloud == "cloud_merged.pcd":
+    pcd = o3d.io.read_point_cloud(point_cloud)
+else:
+    print(point_cloud)
+    pcd = o3d.io.read_point_cloud(point_cloud, format="xyzrgb")
+
 zoom = 0.5
 
 RobotConfig = namedtuple("RobotConfig", ["ground_clearance", "robot_dimensions"])
@@ -24,7 +34,7 @@ def visualize(list_of_pcs: list):
 # with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
 def dbscan_pcd(pcd):
     # labels = np.array(pcd.cluster_dbscan(eps=0.08, min_points=10, print_progress=True))
-    labels = np.array(pcd.cluster_dbscan(eps=0.3, min_points=30, print_progress=True))
+    labels = np.array(pcd.cluster_dbscan(eps=0.25, min_points=30, print_progress=True))
 
     max_label = labels.max()
     print(f"point cloud has {max_label + 1} clusters")
@@ -39,7 +49,7 @@ def dbscan_pcd(pcd):
 
 def plane_seg(pcd) -> tuple:
     plane_model, inliers = pcd.segment_plane(
-        distance_threshold=0.28, ransac_n=3, num_iterations=1000
+        distance_threshold=0.28, ransac_n=5, num_iterations=1000
     )
     [a, b, c, d] = plane_model
     print(f"Plane equation: {a:.2f}x + {b:.2f}y + {c:.2f}z + {d:.2f} = 0")
@@ -65,15 +75,22 @@ print("Labels: ", labels_idx)
 
 max_label = labels_idx.max()
 
-clusters = [[] for _ in range(0,max_label+1)]
+clusters = [[] for _ in range(0, max_label + 1)]
 
-for  idx, label in enumerate(labels_idx):
-    if label >=0: 
+for idx, label in enumerate(labels_idx):
+    if label >= 0:
         clusters[label].append(idx)
-    
-visual = [pcd,obstacle_groups]
+
+visual = [pcd, obstacle_groups]
 for cluster in clusters:
-    visual.append(obstacle_groups.select_by_index(cluster).get_axis_aligned_bounding_box())
+    if hull:
+        hull, _ = obstacle_groups.select_by_index(cluster).compute_convex_hull()
+        hull_ls = o3d.geometry.LineSet.create_from_triangle_mesh(hull)
+        hull_ls.paint_uniform_color((1, 0, 0))
+        visual.append(hull_ls)
+    bb = obstacle_groups.select_by_index(cluster).get_axis_aligned_bounding_box()
+    bb.color = (1,0,0)
+    visual.append(bb)
 visualize(visual)
 
 
@@ -81,7 +98,7 @@ visualize(visual)
 
 
 # aabb = pcd.get_axis_aligned_bounding_box()
-# aabb.color = (1, 0, 0)
+# aabb.color = (1, 0, 0)sample_points_poisson_disk
 # obb = pcd.get_oriented_bounding_box()
 # obb.color = (0, 1, 0)
 # o3d.visualization.draw_geometries(
