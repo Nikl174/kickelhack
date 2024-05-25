@@ -4,7 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 ply_point_cloud = o3d.data.PLYPointCloud()
-pcd = o3d.io.read_point_cloud("cloud_merged.pcd")
+#, format="xyzrgb"
+pcd = o3d.io.read_point_cloud("./cloud_merged.pcd")
 zoom = 0.5
 
 RobotConfig = namedtuple("RobotConfig", ["ground_clearance", "robot_dimensions"])
@@ -21,13 +22,13 @@ def display_inlier_outlier(cloud, ind):
     print("Showing outliers (red) and inliers (gray): ")
     outlier_cloud.paint_uniform_color([1, 0, 0])
     # inlier_cloud.paint_uniform_color([0.8, 0.8, 0.8])
-    o3d.visualization.draw_geometries(
-        [inlier_cloud, outlier_cloud],
-        zoom=0.3412,
-        front=[0.4257, -0.2125, -0.8795],
-        lookat=[2.6172, 2.0475, 1.532],
-        up=[-0.0694, -0.9768, 0.2024],
-    )
+    # o3d.visualization.draw_geometries(
+    #     [inlier_cloud, outlier_cloud],
+    #     zoom=0.3412,
+    #     front=[0.4257, -0.2125, -0.8795],
+    #     lookat=[2.6172, 2.0475, 1.532],
+    #     up=[-0.0694, -0.9768, 0.2024],
+    # )
 
 
 # with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
@@ -58,41 +59,42 @@ def plane_seg(pcd) -> tuple:
     [a, b, c, d] = plane_model
     print(f"Plane equation: {a:.2f}x + {b:.2f}y + {c:.2f}z + {d:.2f} = 0")
 
-    inlier_cloud = pcd.select_by_index(inliers)
+    inlier_cloud = pcd.select_by_index(inliers, invert=True)
     inlier_cloud.paint_uniform_color([1.0, 0, 0])
-    outlier_cloud = pcd.select_by_index(inliers, invert=True)
-    return (inlier_cloud, outlier_cloud)
+    outlier_cloud = pcd.select_by_index(inliers)
+    o3d.visualization.draw_geometries(
+        [
+            inlier_cloud,
+            outlier_cloud,
+        ],
+        zoom=zoom,
+        front=[-0.4999, -0.1659, -0.8499],
+        lookat=[2.1813, 2.0619, 2.0999],
+        up=[0.1204, -0.9852, 0.1215],
+    )
+    return (inlier_cloud, inliers)
 
 
 print("size befor down_sample: ", pcd)
-down_pcd = pcd.voxel_down_sample(voxel_size=0.75)
+down_pcd = pcd.voxel_down_sample(voxel_size=0.10)
 print("size after: ", down_pcd)
-cl, idx = down_pcd.remove_statistical_outlier(nb_neighbors=500, std_ratio=0.8)
+cl, idx = down_pcd.remove_statistical_outlier(nb_neighbors=500, std_ratio=0.5)
 inlier_cloud = down_pcd.select_by_index(idx)
-inlier_cloud , _ = plane_seg(inlier_cloud)
+inlier_cloud , inlier_idx = plane_seg(inlier_cloud)
+outlier_cloud = down_pcd.select_by_index(inlier_idx, invert=True)
 
-o3d.visualization.draw_geometries(
-    [
-        inlier_cloud,
-        p
-    ],
-    zoom=zoom,
-    front=[-0.4999, -0.1659, -0.8499],
-    lookat=[2.1813, 2.0619, 2.0999],
-    up=[0.1204, -0.9852, 0.1215],
-)
 
-display_inlier_outlier(down_pcd, idx)
+# display_inlier_outlier(down_pcd, idx)
 
 
 # aabb = pcd.get_axis_aligned_bounding_box()
 # aabb.color = (1, 0, 0)
 # obb = pcd.get_oriented_bounding_box()
 # obb.color = (0, 1, 0)
-# o3d.visualization.draw_geometries(
-#         [down_pcd],
-#         zoom=zoom,
-#         front=[-0.4999, -0.1659, -0.8499],
-#         lookat=[2.1813, 2.0619, 2.0999],
-#         up=[0.1204, -0.9852, 0.1215],
-#     )
+o3d.visualization.draw_geometries(
+        [down_pcd],
+        zoom=zoom,
+        front=[-0.4999, -0.1659, -0.8499],
+        lookat=[2.1813, 2.0619, 2.0999],
+        up=[0.1204, -0.9852, 0.1215],
+    )
