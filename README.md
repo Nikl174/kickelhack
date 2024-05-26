@@ -34,5 +34,5 @@ pip install open3d                  # install the required library
 ## Usage
 TODO design interface
 ```bash
-./name.py point_cloud.asc 
+./test.py point_cloud.pcd 
 ```
