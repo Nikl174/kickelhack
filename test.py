@@ -20,30 +20,6 @@ zoom = 0.5
 
 RobotConfig = namedtuple("RobotConfig", ["ground_clearance", "robot_dimensions"])
 
-def group_and_box_pcd(obstacles, hull: bool):
-    """groups same points together and creates a bounding box and optionally a hull curve around the clusters"""
-    obstacle_groups, labels_idx = dbscan_pcd(obstacles)
-    print("Labels: ", labels_idx)
-
-    max_label = labels_idx.max()
-
-    clusters = [[] for _ in range(0, max_label + 1)]
-
-    for idx, label in enumerate(labels_idx):
-        if label >= 0:
-            clusters[label].append(idx)
-
-    visual = [pcd, obstacle_groups]
-    for cluster in clusters:
-        if hull:
-            hull, _ = obstacle_groups.select_by_index(cluster).compute_convex_hull()
-            hull_ls = o3d.geometry.LineSet.create_from_triangle_mesh(hull)
-            hull_ls.paint_uniform_color((1, 0, 0))
-            visual.append(hull_ls)
-        bb = obstacle_groups.select_by_index(cluster).get_axis_aligned_bounding_box()
-        bb.color = (1,0,0)
-        visual.append(bb)
-    return visual
 
 def visualize(list_of_pcs: list):
     o3d.visualization.draw_geometries(
@@ -52,6 +28,7 @@ def visualize(list_of_pcs: list):
         front=[0.4257, -0.2125, -0.8795],
         lookat=[2.6172, 2.0475, 1.532],
         up=[-0.0694, -0.9768, 0.2024],
+        # point_show_normal=True,
     )
 
 
@@ -95,22 +72,55 @@ obstacles, obstacles_idx = plane_seg(down_cloud)
 outlier_cloud = down_pcd.select_by_index(obstacles_idx + outlier_idx, invert=True)
 
 
+def alpha_shape(pcd, alpha):
+    mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(pcd, alpha)
+    mesh.compute_vertex_normals()
+    return mesh
 
-visual = group_and_box_pcd(obstacles, bool(hull))
+
+def group_and_box_pcd(obstacles, hull: bool, alpha: float):
+    """groups same points together and creates a bounding box and optionally a hull curve around the clusters"""
+    obstacle_groups, labels_idx = dbscan_pcd(obstacles)
+    print("Labels: ", labels_idx)
+
+    max_label = labels_idx.max()
+
+    clusters = [[] for _ in range(0, max_label + 1)]
+
+    for idx, label in enumerate(labels_idx):
+        if label >= 0:
+            clusters[label].append(idx)
+
+    visual = [obstacle_groups]
+    for cluster in clusters:
+        point_group = obstacle_groups.select_by_index(cluster)
+        if hull:
+            hull, _ = point_group.compute_convex_hull()
+            hull_ls = o3d.geometry.LineSet.create_from_triangle_mesh(hull)
+            hull_ls.paint_uniform_color((1, 0, 0))
+            visual.append(hull_ls)
+        # bb = point_group.get_axis_aligned_bounding_box()
+        bb = point_group.get_oriented_bounding_box()
+        bb.color = (1, 0, 0)
+        bb.scale(1.25, bb.get_center())
+        visual.append(bb)
+
+    return visual
+
+
+print("Recompute the normal of the downsampled point cloud")
+
+# outlier_cloud.estimate_normals(
+#     search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
+# )
+# outlier_cloud.normalize_normals()
+
+# normals = np.asarray(outlier_cloud.normals)
+
+
+visual = group_and_box_pcd(obstacles, bool(hull), 0.03)
+# visual.append(pcd)
+visual.append(down_pcd)
 visualize(visual)
 
 
-# display_inlier_outlier(down_pcd, idx)
-
-
-# aabb = pcd.get_axis_aligned_bounding_box()
-# aabb.color = (1, 0, 0)sample_points_poisson_disk
-# obb = pcd.get_oriented_bounding_box()
-# obb.color = (0, 1, 0)
-# o3d.visualization.draw_geometries(
-#         [down_pcd],
-#         zoom=zoom,
-#         front=[-0.4999, -0.1659, -0.8499],
-#         lookat=[2.1813, 2.0619, 2.0999],
-#         up=[0.1204, -0.9852, 0.1215],
-#     )
