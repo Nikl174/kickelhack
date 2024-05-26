@@ -36,3 +36,14 @@ TODO design interface
 ```bash
 ./test.py point_cloud.pcd 
 ```
+
+## Approach
+-> determine parts the robot cant drive and then calculate the inverse set
+1. Select statistical outlier to determine the most distant points of the main point-mass
+2. Use the [RANSAC](https://en.wikipedia.org/wiki/Random_sample_consensus) algorithm to create plane segmentation of nearby points of those outlier
+-> this creates planes of big objects, a robot can't drive over
+3. To extract those from the main point-cloud, the 'outlier-objects' get clustered with [DBSCAN](https://en.wikipedia.org/wiki/DBSCAN)
+4. Around the clustered data a bounding box is created and the cross-section is extracted from the point-cloud to reduce the possible planes
+5. Finally RANSAC is called again on the reduced data to determine the drivable plain
+
+![A final result](./pictures/result.png)
