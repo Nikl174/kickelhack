@@ -20,6 +20,30 @@ zoom = 0.5
 
 RobotConfig = namedtuple("RobotConfig", ["ground_clearance", "robot_dimensions"])
 
+def group_and_box_pcd(obstacles, hull: bool):
+    """groups same points together and creates a bounding box and optionally a hull curve around the clusters"""
+    obstacle_groups, labels_idx = dbscan_pcd(obstacles)
+    print("Labels: ", labels_idx)
+
+    max_label = labels_idx.max()
+
+    clusters = [[] for _ in range(0, max_label + 1)]
+
+    for idx, label in enumerate(labels_idx):
+        if label >= 0:
+            clusters[label].append(idx)
+
+    visual = [pcd, obstacle_groups]
+    for cluster in clusters:
+        if hull:
+            hull, _ = obstacle_groups.select_by_index(cluster).compute_convex_hull()
+            hull_ls = o3d.geometry.LineSet.create_from_triangle_mesh(hull)
+            hull_ls.paint_uniform_color((1, 0, 0))
+            visual.append(hull_ls)
+        bb = obstacle_groups.select_by_index(cluster).get_axis_aligned_bounding_box()
+        bb.color = (1,0,0)
+        visual.append(bb)
+    return visual
 
 def visualize(list_of_pcs: list):
     o3d.visualization.draw_geometries(
@@ -34,7 +58,7 @@ def visualize(list_of_pcs: list):
 # with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
 def dbscan_pcd(pcd):
     # labels = np.array(pcd.cluster_dbscan(eps=0.08, min_points=10, print_progress=True))
-    labels = np.array(pcd.cluster_dbscan(eps=0.25, min_points=30, print_progress=True))
+    labels = np.array(pcd.cluster_dbscan(eps=0.23, min_points=30, print_progress=True))
 
     max_label = labels.max()
     print(f"point cloud has {max_label + 1} clusters")
@@ -70,27 +94,9 @@ print("segmentation of in planes")
 obstacles, obstacles_idx = plane_seg(down_cloud)
 outlier_cloud = down_pcd.select_by_index(obstacles_idx + outlier_idx, invert=True)
 
-obstacle_groups, labels_idx = dbscan_pcd(obstacles)
-print("Labels: ", labels_idx)
 
-max_label = labels_idx.max()
 
-clusters = [[] for _ in range(0, max_label + 1)]
-
-for idx, label in enumerate(labels_idx):
-    if label >= 0:
-        clusters[label].append(idx)
-
-visual = [pcd, obstacle_groups]
-for cluster in clusters:
-    if hull:
-        hull, _ = obstacle_groups.select_by_index(cluster).compute_convex_hull()
-        hull_ls = o3d.geometry.LineSet.create_from_triangle_mesh(hull)
-        hull_ls.paint_uniform_color((1, 0, 0))
-        visual.append(hull_ls)
-    bb = obstacle_groups.select_by_index(cluster).get_axis_aligned_bounding_box()
-    bb.color = (1,0,0)
-    visual.append(bb)
+visual = group_and_box_pcd(obstacles, bool(hull))
 visualize(visual)
 
 
